@@ -62,7 +62,7 @@ midiAutoDJ.fadeSourceHoldTicks = 4;
 midiAutoDJ.fadeDriveWhenLoop = 1;
 // When the outgoing deck has an active beatloop, Mixxx may pace the fade by track progress so the transition never completes. Set to 1 to drive the crossfader at a fixed rate so the transition always finishes.
 
-midiAutoDJ.fadeDriveDurationWhenLoop = 45;
+midiAutoDJ.fadeDriveDurationWhenLoop = 20;
 // Desired transition duration in seconds when driving (outgoing deck in loop). Set to match your AutoDJ transition duration in the Mixxx UI (e.g. 35). Script computes step from this and sleepDuration so the fade takes this many seconds. Set to 0 to use fadeDriveStepWhenLoop instead.
 
 midiAutoDJ.fadeDriveStepWhenLoop = 0.028;
@@ -434,20 +434,22 @@ crossfader = 1.0-crossfader; // Fades from 0.0 to 1.0
 engine.setValue("[EqualizerRack1_[Channel1]_Effect1]", "parameter3", midiAutoDJ.normalTrebleLevel);
 engine.setValue("[EqualizerRack1_[Channel2]_Effect1]", "parameter3", midiAutoDJ.normalTrebleLevel);
 
-// Safety: when crossfader is fully on one deck, keep that deck's bass at normal. Use stored target when both playing (so 2->1 works).
-if (deck1Playing && deck2Playing && midiAutoDJ.transitionTargetDeck >= 1 && midiAutoDJ.transitionTargetDeck <= 2) {
-    var targetD = midiAutoDJ.transitionTargetDeck;
-    var sourceD = 3 - targetD;
-    if (crossfader >= 0.99) {
-        engine.setValue("[EqualizerRack1_[Channel"+targetD+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
-    } else if (crossfader <= 0.01) {
-        engine.setValue("[EqualizerRack1_[Channel"+sourceD+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
-    }
-} else {
-    if (crossfader >= 0.99) {
-        engine.setValue("[EqualizerRack1_[Channel"+next+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
-    } else if (crossfader <= 0.01) {
-        engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+// Safety: when both decks are playing and crossfader is at an extreme, set that deck's bass to normal. When only one deck is playing we don't touch bass so the user can adjust it.
+if (deck1Playing && deck2Playing) {
+    if (midiAutoDJ.transitionTargetDeck >= 1 && midiAutoDJ.transitionTargetDeck <= 2) {
+        var targetD = midiAutoDJ.transitionTargetDeck;
+        var sourceD = 3 - targetD;
+        if (crossfader >= 0.99) {
+            engine.setValue("[EqualizerRack1_[Channel"+targetD+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+        } else if (crossfader <= 0.01) {
+            engine.setValue("[EqualizerRack1_[Channel"+sourceD+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+        }
+    } else {
+        if (crossfader >= 0.99) {
+            engine.setValue("[EqualizerRack1_[Channel"+next+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+        } else if (crossfader <= 0.01) {
+            engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+        }
     }
 }
 
@@ -604,23 +606,10 @@ if (deck1Playing && deck2Playing && midiAutoDJ.transitionTargetDeck >= 1 && midi
  engine.setValue("[Channel"+prev+"]", "key", midiAutoDJ.originalKeyNext);
  midiAutoDJ.originalKeyNext = undefined;
  }
- // Adjust the EQ for bass (parameter 1) if necessary to smoothly transition after the fade in
+ // After an EQ transition, set bass to normal once so the user can then adjust it (we don't keep writing so the user keeps control).
     if (midiAutoDJ.lastTransitionUseEQ) {
-        // Restore bass (parameter1) toward preferred normal level
-        var bassEQ = engine.getValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1");
-        var targetBass = midiAutoDJ.normalBassLevel;
-        if (bassEQ != targetBass) {
-            if (bassEQ < targetBass) {
-                bassEQ += 0.05;
-                if (bassEQ > targetBass) {
-                    bassEQ = targetBass;
-                }
-            }
-            if (bassEQ > targetBass) {
-                bassEQ = targetBass;
-            }
-            engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", bassEQ);
-        }
+        engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
+        midiAutoDJ.lastTransitionUseEQ = 0; // one-time restore, then user has control
     }
 
  if (midiAutoDJ.bpmSyncFade) {
