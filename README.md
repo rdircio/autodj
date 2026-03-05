@@ -10,7 +10,8 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 - **Double and half time**: e.g. 160 BPM to 80 BPM; the script supports Mixxx’s double/half time sync.
 - **Bass EQ** for smoother transitions: incoming bass ramps in while outgoing bass stays solid; optional randomized EQ per transition.
 - **Smart mix points**: Uses Intro Start, main cue, or first beat plus an exit hotcue/Outro Start to choose musical in/out points.
-- **Randomized transitions (optional)**: Per‑transition random EQ on/off, EQ speed, and beats-before‑entrance; optional one‑slot FX on the outgoing deck only (one effect at a time, randomized unit mix and slot wet > 50%).
+- **Randomized transitions (optional)**: Per‑transition random EQ on/off, EQ speed, and beats-before‑entrance.
+- **Random effects during fade (optional)**: When enabled, one effect unit (FX1 or FX2) and one slot (1–3) are chosen at random per transition and applied only to the outgoing deck. Only one effect is on at a time; all others are turned off when a transition starts and all are turned off when it ends. Unit mix (dry/wet) and slot wet are randomized per transition (default range 50–100%).
 - **Beatloop‑safe long fades**: When the outgoing track is in a beatloop, the script drives the crossfader so the transition still completes at your configured AutoDJ duration.
 
 ### Example
