@@ -13,6 +13,7 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 - **Randomized transitions (optional)**: Per‑transition random EQ on/off, EQ speed, and beats-before‑entrance.
 - **Random effects during fade (optional)**: When enabled, one effect unit (FX1 or FX2) and one slot (1–3) are chosen at random per transition and applied only to the outgoing deck. Only one effect is on at a time; all others are turned off when a transition starts and all are turned off when it ends. Unit mix (dry/wet) and slot wet are randomized per transition (default range 50–100%).
 - **Beatloop‑safe long fades**: When the outgoing track is in a beatloop, the script drives the crossfader so the transition still completes at your configured AutoDJ duration.
+- **Preferences dialog (Mixxx 2.5+)**: When using the "AutoDJ (Script)" mapping, a settings panel in **Preferences → Controllers** lets you adjust cues, EQ, random transitions, effects, and tempo/key options without editing the script; changes apply on Apply/OK with no need to stop Auto DJ or restart Mixxx.
 
 ### Example
 
