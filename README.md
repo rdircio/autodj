@@ -4,11 +4,18 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 
 ## Features
 
+- **Automatic song selection** with an adjustable tempo difference (BPM %) tolerance; tracks outside the tolerance are skipped.
+- **Automatic harmonic mixing and key transposition**: optionally matches the next track’s key to the current one during the mix, then restores the new track to its original key after the transition.
+- **Entrance and exit cue points**: main cue or Intro Start for where the next track starts; hotcue (default 4) or Outro Start for where the current track ends the mix.
+- **Double and half time**: e.g. 160 BPM to 80 BPM; the script supports Mixxx’s double/half time sync.
+- **Bass EQ** for smoother transitions: incoming bass ramps in while outgoing bass stays solid; optional randomized EQ per transition.
 - **Smart mix points**: Uses Intro Start, main cue, or first beat plus an exit hotcue/Outro Start to choose musical in/out points.
-- **Harmonic mixing**: Optionally matches key during the mix, then restores the new track to its original key.
-- **Bass‑swap EQ fade**: Incoming bass ramps in while outgoing bass stays solid, with safety to keep normal bass at the crossfader ends.
-- **Randomized transitions (optional)**: Per‑transition random EQ on/off, EQ speed, and beats-before‑entrance; optional one‑slot FX on the outgoing deck only.
-- **Beatloop‑safe long fades**: Handles outgoing tracks in beatloops by driving the crossfader so transitions still finish at your configured AutoDJ duration.
+- **Randomized transitions (optional)**: Per‑transition random EQ on/off, EQ speed, and beats-before‑entrance; optional one‑slot FX on the outgoing deck only (one effect at a time, randomized unit mix and slot wet > 50%).
+- **Beatloop‑safe long fades**: When the outgoing track is in a beatloop, the script drives the crossfader so the transition still completes at your configured AutoDJ duration.
+
+### Example
+
+A transition from the song on the right (e.g. 160 BPM, Bb Major) to the song on the left (e.g. 90 BPM, D minor). Every two beats on the right can be matched to one on the left (double/half time). The exit cue on the current track is aligned with the entrance cue on the next. As the cues are approached, the tempo can change smoothly toward the new song while beats stay synchronized. At the same time, the EQ fades out the bass of the old song and fades in the bass of the new one.
 
 ## Install
 
@@ -17,6 +24,13 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 ```
 
 Then restart Mixxx (or reload the controller in **Preferences → Controllers**).
+
+## Usage
+
+1. **MIDI controller**: Use a MIDI loopback driver (e.g. [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) on Windows, or IAC Driver on macOS) so Mixxx can load the script. In **Options → Preferences → Controllers**, select the loopback device and in the Scripts tab add the AutoDJ mapping (and ensure `AutoDJ.js` is in the controllers folder, e.g. via `./install-autodj.sh`).
+2. **Library**: Load songs, run BPM/key analysis, and attach the desired crates to Auto DJ.
+3. **Cues**: Set the main cue (or Intro Start) for the entrance and hotcue 4 (or your **exitCue**) for the exit on each track. Check that the beat grid is aligned (see **Setup** below).
+4. Enable **Auto DJ** in Mixxx; the script runs automatically when Auto DJ is on.
 
 ## Setup (recommended)
 
@@ -76,6 +90,13 @@ Edit `AutoDJ.js` to change behaviour. Main options at the top:
 | **logSkipReasons** | 1 | Print to Mixxx log why a track was skipped (Debug). Set 0 to disable. |
 | **transpose** | 1 | Harmonic mixing (key matching). Set **0** to keep every song in its original key (no transposition). |
 | **restoreKeyAfterFade** | 1 | After the mix, restore the new track to its original key. Set 0 to leave it transposed. |
+
+## Tips
+
+- Edit `AutoDJ.js` to customize options (tempo tolerance, transpose, EQ, effects, etc.).
+- In Mixxx **Auto DJ** settings, adjust the **transition duration**. The default (e.g. 10 s) is often long; many prefer **6–8 seconds**.
+- More options are in **Options → Preferences → Auto DJ**. See [Mixxx Auto DJ spec](https://blueprints.launchpad.net/mixxx/+spec/auto-dj-crates).
+- Try the crossfader in **additive** vs **constant power** mode; you may prefer one over the other.
 
 ## Files
 
