@@ -113,7 +113,7 @@ midiAutoDJ.effectSlots = [1, 2, 3];
 midiAutoDJ.logEffectActivation = 1;
 // Set to 1 to print when an effect unit is activated/deactivated (Mixxx log). Use 0 to reduce log noise.
 
-midiAutoDJ.maxBpmAdjustment = 16;
+midiAutoDJ.maxBpmAdjustment = 12;
 // Maximum percentage adjustment of BPM allowed in order to sync beats
 // Note that Mixxx can do double/half time mixing, e.g. sync 80bpm to 160bpm
 // Unit: Percentage (not absolute BPM), Integer; Default: 25 (was 12; increase if all tracks get skipped)
