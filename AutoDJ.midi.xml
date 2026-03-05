@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MixxxControllerPreset schemaVersion="1" mixxxVersion="2.0+">
+    <info>
+        <name>AutoDJ (Script)</name>
+        <author>Byron Xu, Sophia Herzog, rdircio</author>
+        <description>AutoDJ script with configurable options. Use with a MIDI loopback device (e.g. IAC Driver on macOS, loopMIDI on Windows) so Mixxx loads this mapping; then adjust settings below or in the script.</description>
+    </info>
+    <settings>
+        <group label="Cues and timing">
+                <option variable="exitCue" type="integer" label="Exit hotcue number" default="4" min="1" max="8" description="Hotcue used for the exit point (where the current track ends the mix)."/>
+                <option variable="preStart" type="integer" label="Pre-start (beats)" default="8" min="1" max="64" step="1" description="Beats before the exit point to begin the transition. Allowed: 1, 2, 4, 8, 16, 32, 64."/>
+                <option variable="preStartNextBeats" type="integer" label="Next track beat offset" default="0" description="Beats before/after the next track mix-in point. 0 = on the point; negative = skip intro beats; positive = lead-in (use with care)."/>
+                <option variable="useIntroStart" type="boolean" label="Use Intro Start as entrance" default="true" description="When the next track has Intro Start set, use it as the mix-in point instead of main cue."/>
+                <option variable="useOutroForExit" type="boolean" label="Use Outro Start for exit" default="false" description="When the current track has Outro Start set, use it as the exit point instead of the exit hotcue."/>
+                <option variable="fallbackToStart" type="boolean" label="Fallback to track start" default="true" description="When neither intro nor main cue is set, start from track start so the transition still works."/>
+                <option variable="snapToFirstBeat" type="boolean" label="Snap to first beat" default="true" description="When using fallback, snap to the first beat of the first bar using the beatgrid."/>
+                <option variable="alignBeatgridAtEntrance" type="boolean" label="Align beatgrid at entrance" default="true" description="Align the beatgrid to the entrance (main cue or Intro Start) so the grid matches the real downbeat."/>
+            </group>
+            <group label="EQ and crossfade">
+                <option variable="useEQ" type="boolean" label="Use EQ during transition" default="false" description="Fade bass out on outgoing track and in on incoming track during the mix."/>
+                <option variable="normalBassLevel" type="real" label="Normal bass level" default="1.0" min="0" max="2" step="0.05" precision="2" description="Target bass EQ level after the transition (1.0 = unity)."/>
+                <option variable="normalTrebleLevel" type="real" label="Normal treble level" default="1.3" min="0" max="2" step="0.05" precision="2" description="Target treble EQ level after the transition."/>
+                <option variable="bassRestoreStepDuringFade" type="real" label="Bass restore step" default="0.12" min="0.02" max="0.5" step="0.01" precision="2" description="Step per tick when ramping bass to normal during the transition."/>
+                <option variable="fadeSourceHoldTicks" type="integer" label="Hold source full (ticks)" default="4" min="0" max="20" description="Ticks to keep crossfader at full source at the start of the fade (~1 tick/sec)."/>
+                <option variable="fadeDriveWhenLoop" type="boolean" label="Drive crossfader when deck in loop" default="true" description="When the outgoing deck has a beatloop, drive the crossfader so the transition still completes."/>
+                <option variable="fadeDriveDurationWhenLoop" type="integer" label="Drive duration (seconds)" default="20" min="0" max="60" description="Desired transition duration in seconds when driving crossfader (outgoing deck in loop). Match AutoDJ UI duration (e.g. 35)."/>
+            </group>
+            <group label="Random transitions">
+                <option variable="randomTransitions" type="boolean" label="Randomize transition style" default="true" description="Randomize EQ on/off, EQ speed, and beats-before-entrance each transition."/>
+                <option variable="randomEQChance" type="real" label="Random EQ chance" default="0.85" min="0" max="1" step="0.05" precision="2" description="Probability (0–1) of using EQ when randomTransitions is on (e.g. 0.85 = 85% EQ, 15% pure crossfade)."/>
+                <option variable="randomEQStepMin" type="real" label="Random EQ step min" default="0.035" min="0.01" max="0.2" step="0.005" precision="3" description="Min EQ fade step per tick when randomizing."/>
+                <option variable="randomEQStepMax" type="real" label="Random EQ step max" default="0.065" min="0.01" max="0.2" step="0.005" precision="3" description="Max EQ fade step per tick when randomizing."/>
+                <option variable="logRandomTransitions" type="boolean" label="Log random choices" default="true" description="Print each transition's random choices to the Mixxx log (Debug)."/>
+            </group>
+            <group label="Random effects">
+                <option variable="randomEffectDuringFade" type="boolean" label="Random effect during fade" default="false" description="Apply one random effect (FX1/FX2, slot 1–3) to the outgoing deck during the crossfade."/>
+                <option variable="randomEffectChance" type="real" label="Random effect chance" default="1.0" min="0" max="1" step="0.1" precision="1" description="Probability (0–1) of applying an effect this transition when random effect is on."/>
+                <option variable="effectMixMin" type="real" label="Effect mix min" default="0.5" min="0" max="1" step="0.05" precision="2" description="Min unit mix (dry/wet) for the random effect."/>
+                <option variable="effectMixMax" type="real" label="Effect mix max" default="1.0" min="0" max="1" step="0.05" precision="2" description="Max unit mix for the random effect."/>
+                <option variable="effectSlotWetMin" type="real" label="Effect slot wet min" default="0.5" min="0" max="1" step="0.05" precision="2" description="Min effect slot wet (parameter1) per transition."/>
+                <option variable="effectSlotWetMax" type="real" label="Effect slot wet max" default="1.0" min="0" max="1" step="0.05" precision="2" description="Max effect slot wet per transition."/>
+                <option variable="logEffectActivation" type="boolean" label="Log effect activation" default="true" description="Print when an effect unit is activated/deactivated (Mixxx log)."/>
+            </group>
+            <group label="Tempo and key">
+                <option variable="maxBpmAdjustment" type="integer" label="Max BPM adjustment (%)" default="12" min="1" max="50" description="Maximum percentage BPM change allowed to sync beats (e.g. 12 = 12%). Tracks outside this are skipped."/>
+                <option variable="transpose" type="boolean" label="Harmonic mixing (transpose)" default="false" description="Transpose the next track to match the current track's key during the mix."/>
+                <option variable="transposeMax" type="integer" label="Max transposition (semitones)" default="1" min="0" max="6" description="Maximum semitones to transpose for key matching."/>
+                <option variable="restoreKeyAfterFade" type="boolean" label="Restore key after fade" default="true" description="After the transition, restore the new track to its original key."/>
+            </group>
+    </settings>
+    <controller id="AutoDJ">
+        <scriptfiles>
+            <file filename="AutoDJ.js" functionprefix="midiAutoDJ"/>
+        </scriptfiles>
+    </controller>
+</MixxxControllerPreset>

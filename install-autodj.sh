@@ -7,7 +7,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE="${SCRIPT_DIR}/AutoDJ.js"
+SOURCE_JS="${SCRIPT_DIR}/AutoDJ.js"
+SOURCE_XML="${SCRIPT_DIR}/AutoDJ.midi.xml"
 
 # Detect platform and choose Mixxx user controllers directory
 OS="$(uname -s)"
@@ -26,14 +27,20 @@ case "$OS" in
     ;;
 esac
 
-DEST="${CONTROLLERS_DIR}/AutoDJ.js"
+DEST_JS="${CONTROLLERS_DIR}/AutoDJ.js"
+DEST_XML="${CONTROLLERS_DIR}/AutoDJ.midi.xml"
 
-if [[ ! -f "$SOURCE" ]]; then
-  echo "Error: AutoDJ.js not found at $SOURCE" >&2
+if [[ ! -f "$SOURCE_JS" ]]; then
+  echo "Error: AutoDJ.js not found at $SOURCE_JS" >&2
   exit 1
 fi
 
 mkdir -p "$CONTROLLERS_DIR"
-cp "$SOURCE" "$DEST"
-echo "Installed: $DEST"
+cp "$SOURCE_JS" "$DEST_JS"
+echo "Installed: $DEST_JS"
+if [[ -f "$SOURCE_XML" ]]; then
+  cp "$SOURCE_XML" "$DEST_XML"
+  echo "Installed: $DEST_XML"
+fi
 echo "Restart Mixxx (or reload the controller) to use the updated script."
+echo "To get the preferences dialog: select the 'AutoDJ (Script)' mapping for your MIDI device in Preferences > Controllers."

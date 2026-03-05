@@ -24,11 +24,11 @@ A transition from the song on the right (e.g. 160 BPM, Bb Major) to the song on 
 ./install-autodj.sh
 ```
 
-Then restart Mixxx (or reload the controller in **Preferences → Controllers**).
+Then restart Mixxx (or reload the controller in **Preferences → Controllers**). The install script also copies `AutoDJ.midi.xml` so you can use the **preferences dialog** (see below).
 
 ## Usage
 
-1. **MIDI controller**: Use a MIDI loopback driver (e.g. [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) on Windows, or IAC Driver on macOS) so Mixxx can load the script. In **Options → Preferences → Controllers**, select the loopback device and in the Scripts tab add the AutoDJ mapping (and ensure `AutoDJ.js` is in the controllers folder, e.g. via `./install-autodj.sh`).
+1. **MIDI controller**: Use a MIDI loopback driver (e.g. [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) on Windows, or IAC Driver on macOS) so Mixxx can load the script. In **Options → Preferences → Controllers**, select the loopback device and choose the **"AutoDJ (Script)"** mapping (from `AutoDJ.midi.xml`). Ensure `AutoDJ.js` and `AutoDJ.midi.xml` are in the controllers folder, e.g. via `./install-autodj.sh`.
 2. **Library**: Load songs, run BPM/key analysis, and attach the desired crates to Auto DJ.
 3. **Cues**: Set the main cue (or Intro Start) for the entrance and hotcue 4 (or your **exitCue**) for the exit on each track. Check that the beat grid is aligned (see **Setup** below).
 4. Enable **Auto DJ** in Mixxx; the script runs automatically when Auto DJ is on.
@@ -65,9 +65,15 @@ The script picks the **best time to start mixing** the next song (e.g. when the 
 - **To keep every song in its original key** (no transposition at all): in `AutoDJ.js` set **`midiAutoDJ.transpose = 0`**. No key matching, no restore needed.
 - If the next song still ends up off key, ensure **`restoreKeyAfterFade = 1`** (default). The script now snaps the key back when the fade ends (the deck that was “next” becomes “prev”), so the track should always return to its original key.
 
-## Options
+## Preferences dialog (Mixxx 2.5+)
 
-Edit `AutoDJ.js` to change behaviour. Main options at the top:
+If you load the script via the **"AutoDJ (Script)"** mapping (`AutoDJ.midi.xml`), Mixxx shows a **settings panel** for this controller in **Preferences → Controllers** (below the mapping dropdown). You can adjust cues and timing, EQ and crossfade, random transitions, random effects, and tempo/key options there without editing the script. **Settings are applied when you click Apply or OK**—the next transition (and all following ones) will use the new values. You do **not** need to stop Auto DJ or restart Mixxx.
+
+If you use a different mapping that only loads `AutoDJ.js`, you can add a `<settings>` section to that mapping’s XML to get the same UI; the script reads any defined settings via Mixxx’s Settings API and overrides the script defaults.
+
+## Options (script defaults)
+
+You can still edit `AutoDJ.js` to change default behaviour. Main options at the top:
 
 | Option | Default | Description |
 |--------|---------|-------------|

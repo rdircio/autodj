@@ -262,9 +262,58 @@ midiAutoDJ.transitionTargetDeck = 0; // Deck that is coming in (1 or 2), set whe
 midiAutoDJ.fadeSourceHoldTicksLeft = 0; // Countdown for holding crossfader at source full (set when we prepare; decremented in fade block).
 midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in loop), our position 0..1; -1 = not driving (so we don't rely on engine value which Mixxx overwrites).
 
+// Apply controller settings from the mapping XML (Preferences > Controllers > [device] settings).
+// When the script is loaded via AutoDJ.midi.xml (or any mapping that defines these settings),
+// values from the UI override the script defaults above. If getSetting is unavailable or returns
+// undefined for a setting, the script default is kept.
+midiAutoDJ.applySettings = function() {
+ if (typeof engine.getSetting !== "function") {
+  return;
+ }
+ var v;
+ function num(x) {
+  if (typeof x === "number" && !isNaN(x)) return x;
+  if (typeof x === "string") { var n = parseFloat(x, 10); return !isNaN(n) ? n : undefined; }
+  return undefined;
+ }
+ function bool(x) { if (typeof x === "boolean") return x ? 1 : 0; if (typeof x === "number") return x ? 1 : 0; if (typeof x === "string") return (x === "true" || x === "1") ? 1 : 0; return undefined; }
+ if ((v = engine.getSetting("exitCue")) !== undefined) { midiAutoDJ.exitCue = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.exitCue; }
+ if ((v = engine.getSetting("preStart")) !== undefined) { midiAutoDJ.preStart = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.preStart; }
+ if ((v = engine.getSetting("preStartNextBeats")) !== undefined) { midiAutoDJ.preStartNextBeats = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.preStartNextBeats; }
+ if ((v = bool(engine.getSetting("useIntroStart"))) !== undefined) { midiAutoDJ.useIntroStart = v; }
+ if ((v = bool(engine.getSetting("useOutroForExit"))) !== undefined) { midiAutoDJ.useOutroForExit = v; }
+ if ((v = bool(engine.getSetting("fallbackToStart"))) !== undefined) { midiAutoDJ.fallbackToStart = v; }
+ if ((v = bool(engine.getSetting("snapToFirstBeat"))) !== undefined) { midiAutoDJ.snapToFirstBeat = v; }
+ if ((v = bool(engine.getSetting("alignBeatgridAtEntrance"))) !== undefined) { midiAutoDJ.alignBeatgridAtEntrance = v; }
+ if ((v = bool(engine.getSetting("useEQ"))) !== undefined) { midiAutoDJ.useEQ = v; }
+ if ((v = engine.getSetting("normalBassLevel")) !== undefined && num(v) !== undefined) { midiAutoDJ.normalBassLevel = num(v); }
+ if ((v = engine.getSetting("normalTrebleLevel")) !== undefined && num(v) !== undefined) { midiAutoDJ.normalTrebleLevel = num(v); }
+ if ((v = engine.getSetting("bassRestoreStepDuringFade")) !== undefined && num(v) !== undefined) { midiAutoDJ.bassRestoreStepDuringFade = num(v); }
+ if ((v = engine.getSetting("fadeSourceHoldTicks")) !== undefined) { midiAutoDJ.fadeSourceHoldTicks = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.fadeSourceHoldTicks; }
+ if ((v = bool(engine.getSetting("fadeDriveWhenLoop"))) !== undefined) { midiAutoDJ.fadeDriveWhenLoop = v; }
+ if ((v = engine.getSetting("fadeDriveDurationWhenLoop")) !== undefined) { midiAutoDJ.fadeDriveDurationWhenLoop = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.fadeDriveDurationWhenLoop; }
+ if ((v = bool(engine.getSetting("randomTransitions"))) !== undefined) { midiAutoDJ.randomTransitions = v; }
+ if ((v = engine.getSetting("randomEQChance")) !== undefined && num(v) !== undefined) { midiAutoDJ.randomEQChance = num(v); }
+ if ((v = engine.getSetting("randomEQStepMin")) !== undefined && num(v) !== undefined) { midiAutoDJ.randomEQStepMin = num(v); }
+ if ((v = engine.getSetting("randomEQStepMax")) !== undefined && num(v) !== undefined) { midiAutoDJ.randomEQStepMax = num(v); }
+ if ((v = bool(engine.getSetting("logRandomTransitions"))) !== undefined) { midiAutoDJ.logRandomTransitions = v; }
+ if ((v = bool(engine.getSetting("randomEffectDuringFade"))) !== undefined) { midiAutoDJ.randomEffectDuringFade = v; }
+ if ((v = engine.getSetting("randomEffectChance")) !== undefined && num(v) !== undefined) { midiAutoDJ.randomEffectChance = num(v); }
+ if ((v = engine.getSetting("effectMixMin")) !== undefined && num(v) !== undefined) { midiAutoDJ.effectMixMin = num(v); }
+ if ((v = engine.getSetting("effectMixMax")) !== undefined && num(v) !== undefined) { midiAutoDJ.effectMixMax = num(v); }
+ if ((v = engine.getSetting("effectSlotWetMin")) !== undefined && num(v) !== undefined) { midiAutoDJ.effectSlotWetMin = num(v); }
+ if ((v = engine.getSetting("effectSlotWetMax")) !== undefined && num(v) !== undefined) { midiAutoDJ.effectSlotWetMax = num(v); }
+ if ((v = bool(engine.getSetting("logEffectActivation"))) !== undefined) { midiAutoDJ.logEffectActivation = v; }
+ if ((v = engine.getSetting("maxBpmAdjustment")) !== undefined) { midiAutoDJ.maxBpmAdjustment = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.maxBpmAdjustment; }
+ if ((v = bool(engine.getSetting("transpose"))) !== undefined) { midiAutoDJ.transpose = v; }
+ if ((v = engine.getSetting("transposeMax")) !== undefined) { midiAutoDJ.transposeMax = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.transposeMax; }
+ if ((v = bool(engine.getSetting("restoreKeyAfterFade"))) !== undefined) { midiAutoDJ.restoreKeyAfterFade = v; }
+};
+
 // Functions
 midiAutoDJ.init = function(id) { // Called by Mixxx
  id = 0; // Satisfy JSHint, but keep Mixxx function signature
+ midiAutoDJ.applySettings();
  engine.setValue("[Channel1]", "quantize", 1.0);
  engine.setValue("[Channel2]", "quantize", 1.0);
  engine.setValue("[Channel1]", "keylock", 1.0);
