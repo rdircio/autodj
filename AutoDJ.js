@@ -261,6 +261,7 @@ midiAutoDJ.loggedThisTransitionEffect = false;
 midiAutoDJ.transitionTargetDeck = 0; // Deck that is coming in (1 or 2), set when we prepare; used for bass so direction is correct for both 1->2 and 2->1
 midiAutoDJ.fadeSourceHoldTicksLeft = 0; // Countdown for holding crossfader at source full (set when we prepare; decremented in fade block).
 midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in loop), our position 0..1; -1 = not driving (so we don't rely on engine value which Mixxx overwrites).
+midiAutoDJ.autoDJConnection = null; // engine.makeConnection object for [AutoDJ] enabled; used in init/shutdown.
 
 // Apply controller settings from the mapping XML (Preferences > Controllers > [device] settings).
 // When the script is loaded via AutoDJ.midi.xml (or any mapping that defines these settings),
@@ -322,19 +323,35 @@ midiAutoDJ.init = function(id) { // Called by Mixxx
  engine.setValue("[Channel2]", "keylockMode", 0.0);
  engine.setValue("[Master]", "crossfader", -1.0); // Assumes empty decks on Channel1 and Channel2; see Notes section above
 
+ // Prefer makeConnection (Mixxx 2.5+); connectControl is deprecated and may not invoke the callback.
+ if (typeof engine.makeConnection === "function") {
+ midiAutoDJ.autoDJConnection = engine.makeConnection("[AutoDJ]", "enabled", midiAutoDJ.toggle);
+ if (midiAutoDJ.autoDJConnection) {
+ midiAutoDJ.connected = 1;
+ midiAutoDJ.autoDJConnection.trigger();
+ }
+ }
+ if (!midiAutoDJ.connected && typeof engine.connectControl === "function") {
  if (engine.connectControl("[AutoDJ]", "enabled", "midiAutoDJ.toggle")) {
  midiAutoDJ.connected = 1;
  engine.trigger("[AutoDJ]", "enabled");
- } else { // If connecting fails, this allows using the script anyway; least surprise.
+ }
+ }
+ if (!midiAutoDJ.connected) {
  midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
  }
 };
 
 midiAutoDJ.shutdown = function(id) { // Called by Mixxx
  id = 0; // Satisfy JSHint, but keep Mixxx function signature
- if (midiAutoDJ.connected && engine.connectControl("[AutoDJ]", "enabled", "midiAutoDJ.toggle", true)) {
- midiAutoDJ.connected = 0;
+ if (midiAutoDJ.autoDJConnection && typeof midiAutoDJ.autoDJConnection.disconnect === "function") {
+ midiAutoDJ.autoDJConnection.disconnect();
+ midiAutoDJ.autoDJConnection = null;
  }
+ if (midiAutoDJ.connected && typeof engine.connectControl === "function") {
+ engine.connectControl("[AutoDJ]", "enabled", "midiAutoDJ.toggle", true);
+ }
+ midiAutoDJ.connected = 0;
  if (midiAutoDJ.sleepTimer) {
  engine.stopTimer(midiAutoDJ.sleepTimer);
  }
