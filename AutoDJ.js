@@ -314,7 +314,9 @@ midiAutoDJ.applySettings = function() {
 // Functions
 midiAutoDJ.init = function(id) { // Called by Mixxx
  id = 0; // Satisfy JSHint, but keep Mixxx function signature
+ try {
  midiAutoDJ.applySettings();
+ } catch (e) { /* ignore so timer still starts */ }
  engine.setValue("[Channel1]", "quantize", 1.0);
  engine.setValue("[Channel2]", "quantize", 1.0);
  engine.setValue("[Channel1]", "keylock", 1.0);
@@ -323,6 +325,7 @@ midiAutoDJ.init = function(id) { // Called by Mixxx
  engine.setValue("[Channel2]", "keylockMode", 0.0);
  engine.setValue("[Master]", "crossfader", -1.0); // Assumes empty decks on Channel1 and Channel2; see Notes section above
 
+ try {
  // Prefer makeConnection (Mixxx 2.5+); connectControl is deprecated and may not invoke the callback.
  if (typeof engine.makeConnection === "function") {
  midiAutoDJ.autoDJConnection = engine.makeConnection("[AutoDJ]", "enabled", midiAutoDJ.toggle);
@@ -337,7 +340,10 @@ midiAutoDJ.init = function(id) { // Called by Mixxx
  engine.trigger("[AutoDJ]", "enabled");
  }
  }
- if (!midiAutoDJ.connected) {
+ } catch (e) { /* ignore so timer still starts */ }
+ // Always start the timer last so main() runs every tick. main() returns when [AutoDJ] enabled is 0.
+ // Do not stop this timer in toggle(0), or it may never restart (trigger() can run async and stop it).
+ if (!midiAutoDJ.sleepTimer) {
  midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
  }
 };
@@ -428,10 +434,14 @@ midiAutoDJ.toggle = function(value, group, control) { // Called by signal connec
  control = 0; // Satisfy JSHint, but keep Mixxx function signature
  if (value) {
  midiAutoDJ.songLoaded = 0;
- midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
- } else if (midiAutoDJ.sleepTimer) {
+ if (midiAutoDJ.sleepTimer) {
  engine.stopTimer(midiAutoDJ.sleepTimer);
  midiAutoDJ.sleepTimer = 0;
+ }
+ midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
+ } else {
+ // Do NOT stop the timer here. The timer is started in init() and main() returns when [AutoDJ] enabled is 0.
+ // If we stopped the timer, it would never restart when the user enables Auto DJ (callback may not fire in some Mixxx builds).
  }
  if (midiAutoDJ.deferredSnapTimerId) {
  engine.stopTimer(midiAutoDJ.deferredSnapTimerId);
@@ -444,6 +454,9 @@ midiAutoDJ.toggle = function(value, group, control) { // Called by signal connec
 // Note: Technically, it would be cleaner to use signal connections instead of a timer.
 // However, I prefer keeping this simple; it's just a MIDI script, after all.
 midiAutoDJ.main = function() { // Called by timer
+ if (!engine.getValue("[AutoDJ]", "enabled")) {
+ return;
+ }
  var skip = 0;
  var deck1Playing = engine.getValue("[Channel1]", "play_indicator");
  var deck2Playing = engine.getValue("[Channel2]", "play_indicator");
