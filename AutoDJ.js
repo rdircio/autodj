@@ -173,6 +173,8 @@ midiAutoDJ.logSkipReasons = 0;
 // Unit: Boolean (0 or 1); Default: 1
 
 midiAutoDJ.avoidRecentMinutes = 60;
+// Path for persistent recent-played cache (JSON). Empty = use engine.getPath("settings") + "/autodj_recent_played.json" if available. Persistence requires Mixxx to expose file I/O (e.g. engine.getPath, engine.readFile, engine.writeFile); otherwise cache is in-memory only.
+midiAutoDJ.recentPlayedCachePath = "";
 // Skip tracks that were played in the last N minutes (script keeps its own cache; Mixxx also updates "last played" in the library).
 // Set to 0 to disable. Unit: Integer (minutes); Default: 60 (1 hour).
 
@@ -268,6 +270,48 @@ midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in 
 midiAutoDJ.autoDJConnection = null; // engine.makeConnection object for [AutoDJ] enabled; used in init/shutdown.
 midiAutoDJ.recentPlayed = {}; // { trackId: timestamp } for avoidRecentMinutes; pruned each tick.
 midiAutoDJ.lastMarkedPrevTrackId = null; // So we only mark the outgoing track once per transition.
+midiAutoDJ.RECENT_PLAYED_CACHE_FILENAME = "autodj_recent_played.json";
+
+// Resolve full path for the recent-played cache file. Returns a string path or "" if unavailable.
+midiAutoDJ.getRecentPlayedCachePath = function() {
+ if (midiAutoDJ.recentPlayedCachePath && typeof midiAutoDJ.recentPlayedCachePath === "string") {
+  return midiAutoDJ.recentPlayedCachePath;
+ }
+ if (typeof engine.getPath === "function") {
+  var base = engine.getPath("settings") || engine.getPath("user") || engine.getPath("");
+  if (base && typeof base === "string") {
+   return base + "/" + midiAutoDJ.RECENT_PLAYED_CACHE_FILENAME;
+  }
+ }
+ return "";
+};
+
+// Load recent-played cache from file into midiAutoDJ.recentPlayed. Merges with existing; does not clear. Prunes entries older than avoidRecentMinutes after load. No-op if file I/O unavailable.
+midiAutoDJ.loadRecentPlayedCache = function() {
+ var path = midiAutoDJ.getRecentPlayedCachePath();
+ if (!path) { return; }
+ try {
+  if (typeof engine.readFile !== "function") { return; }
+  var raw = engine.readFile(path);
+  if (typeof raw !== "string" || !raw.length) { return; }
+  var data = JSON.parse(raw);
+  if (data && typeof data === "object") {
+   for (var k in data) { if (data.hasOwnProperty(k) && typeof data[k] === "number") { midiAutoDJ.recentPlayed[k] = data[k]; } }
+  }
+  var cutoff = Date.now() - midiAutoDJ.avoidRecentMinutes * 60 * 1000;
+  for (var r in midiAutoDJ.recentPlayed) { if (midiAutoDJ.recentPlayed[r] < cutoff) { delete midiAutoDJ.recentPlayed[r]; } }
+ } catch (e) { /* ignore parse or read errors */ }
+};
+
+// Save midiAutoDJ.recentPlayed to file. No-op if path or file I/O unavailable.
+midiAutoDJ.saveRecentPlayedCache = function() {
+ var path = midiAutoDJ.getRecentPlayedCachePath();
+ if (!path) { return; }
+ try {
+  if (typeof engine.writeFile !== "function") { return; }
+  engine.writeFile(path, JSON.stringify(midiAutoDJ.recentPlayed));
+ } catch (e) { /* ignore */ }
+};
 
 // Return a stable id for the track loaded on deck (for avoidRecentMinutes). Uses track_location if available, else duration+bpm+samples.
 midiAutoDJ.getTrackId = function(deck) {
@@ -326,6 +370,7 @@ midiAutoDJ.applySettings = function() {
  if ((v = engine.getSetting("transposeMax")) !== undefined) { midiAutoDJ.transposeMax = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.transposeMax; }
  if ((v = bool(engine.getSetting("restoreKeyAfterFade"))) !== undefined) { midiAutoDJ.restoreKeyAfterFade = v; }
  if ((v = engine.getSetting("avoidRecentMinutes")) !== undefined) { midiAutoDJ.avoidRecentMinutes = num(v) !== undefined ? Math.max(0, Math.round(num(v))) : midiAutoDJ.avoidRecentMinutes; }
+if ((v = engine.getSetting("recentPlayedCachePath")) !== undefined && typeof v === "string") { midiAutoDJ.recentPlayedCachePath = v; }
 };
 
 // Functions
@@ -358,15 +403,22 @@ midiAutoDJ.init = function(id) { // Called by Mixxx
  }
  }
  } catch (e) { /* ignore so timer still starts */ }
- // Always start the timer last so main() runs every tick. main() returns when [AutoDJ] enabled is 0.
- // Do not stop this timer in toggle(0), or it may never restart (trigger() can run async and stop it).
- if (!midiAutoDJ.sleepTimer) {
- midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
- }
+// Load persistent recent-played cache if path and file I/O available
+midiAutoDJ.loadRecentPlayedCache();
+if (midiAutoDJ.getRecentPlayedCachePath() && (typeof engine.readFile !== "function" || typeof engine.writeFile !== "function") && !midiAutoDJ._loggedRecentPlayedNoFileIO) {
+ midiAutoDJ._loggedRecentPlayedNoFileIO = true;
+ console.log("AutoDJ: Recent-played persistence disabled (no file I/O in this Mixxx build). Cache is in-memory only.");
+}
+// Always start the timer last so main() runs every tick. main() returns when [AutoDJ] enabled is 0.
+// Do not stop this timer in toggle(0), or it may never restart (trigger() can run async and stop it).
+if (!midiAutoDJ.sleepTimer) {
+midiAutoDJ.sleepTimer = engine.beginTimer(midiAutoDJ.sleepDuration, midiAutoDJ.main);
+}
 };
 
 midiAutoDJ.shutdown = function(id) { // Called by Mixxx
  id = 0; // Satisfy JSHint, but keep Mixxx function signature
+ midiAutoDJ.saveRecentPlayedCache();
  if (midiAutoDJ.autoDJConnection && typeof midiAutoDJ.autoDJConnection.disconnect === "function") {
  midiAutoDJ.autoDJConnection.disconnect();
  midiAutoDJ.autoDJConnection = null;
@@ -566,8 +618,13 @@ if (deck1Playing && deck2Playing) {
         if (midiAutoDJ.avoidRecentMinutes > 0) {
             var prevId = midiAutoDJ.getTrackId(prev);
             if (prevId && prevId !== midiAutoDJ.lastMarkedPrevTrackId) {
-                midiAutoDJ.recentPlayed[prevId] = Date.now();
+                var playedAt = Date.now();
+                midiAutoDJ.recentPlayed[prevId] = playedAt;
                 midiAutoDJ.lastMarkedPrevTrackId = prevId;
+                midiAutoDJ.saveRecentPlayedCache();
+                var displayId = prevId.indexOf("/") >= 0 ? prevId.substring(prevId.lastIndexOf("/") + 1) : prevId;
+                if (displayId.length > 60) { displayId = displayId.substring(0, 57) + "..."; }
+                console.log("AutoDJ: Added to recent-played cache: " + displayId + " at " + new Date(playedAt).toLocaleString());
             }
         }
 
@@ -838,7 +895,9 @@ if (midiAutoDJ.randomEffectDuringFade) {
   var nextId = midiAutoDJ.getTrackId(next);
   if (nextId && midiAutoDJ.recentPlayed[nextId] !== undefined) {
    skip = 1;
-   skipReason = "played in the last " + midiAutoDJ.avoidRecentMinutes + " minutes";
+   var cacheCount = 0;
+   for (var _ in midiAutoDJ.recentPlayed) { cacheCount++; }
+   skipReason = "played in the last " + midiAutoDJ.avoidRecentMinutes + " minutes (" + cacheCount + " tracks in cache)";
   }
  }
  // Is the BPM difference too much? (only when both direct and double/half exceed tolerance)
