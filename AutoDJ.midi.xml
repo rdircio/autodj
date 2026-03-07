@@ -47,7 +47,6 @@
                 <option variable="transposeMax" type="integer" label="Max transposition (semitones)" default="1" min="0" max="6" description="Maximum semitones to transpose for key matching."/>
                 <option variable="restoreKeyAfterFade" type="boolean" label="Restore key after fade" default="true" description="After the transition, restore the new track to its original key."/>
                 <option variable="avoidRecentMinutes" type="integer" label="Avoid tracks played in last (minutes)" default="60" min="0" max="1440" description="Skip tracks that were played in the last N minutes (0 = disabled). The script keeps its own cache; Mixxx also updates last played in the library."/>
-                <option variable="recentPlayedCachePath" type="string" label="Recent-played cache file path" default="" description="Full path to a JSON file to persist the recent-played list across restarts (e.g. /home/user/.mixxx/autodj_recent_played.json). Leave empty to use settings dir + autodj_recent_played.json if Mixxx exposes file I/O. Stock Mixxx does not expose file I/O, so cache stays in-memory unless you use a build that does."/>
             </group>
     </settings>
     <controller id="AutoDJ">

@@ -168,7 +168,7 @@ midiAutoDJ.deferredSnapInterval = 600;
 midiAutoDJ.deferredSnapMaxRetries = 20;
 // Stop retrying after this many attempts (~12 s at 600 ms). Unit: Integer; Default: 20
 
-midiAutoDJ.logSkipReasons = 0;
+midiAutoDJ.logSkipReasons = 1;
 // When the script skips a track, print the reason to the Mixxx log (Debug). Set to 1 to enable (can add load when many skips).
 // Unit: Boolean (0 or 1); Default: 1
 
@@ -313,10 +313,8 @@ midiAutoDJ.saveRecentPlayedCache = function() {
  } catch (e) { /* ignore */ }
 };
 
-// Return a stable id for the track loaded on deck (for avoidRecentMinutes). Uses track_location if available, else duration+bpm+samples.
+// Return a stable id for the track loaded on deck (for avoidRecentMinutes). Uses duration+file_bpm+track_samples (track_location not used; it is not available in all Mixxx builds and causes "Unknown control" warnings).
 midiAutoDJ.getTrackId = function(deck) {
- var loc = engine.getValue("[Channel"+deck+"]", "track_location");
- if (typeof loc === "string" && loc.length > 0) { return loc; }
  var dur = engine.getValue("[Channel"+deck+"]", "duration");
  var bpm = engine.getValue("[Channel"+deck+"]", "file_bpm");
  var samples = engine.getValue("[Channel"+deck+"]", "track_samples");
@@ -370,7 +368,7 @@ midiAutoDJ.applySettings = function() {
  if ((v = engine.getSetting("transposeMax")) !== undefined) { midiAutoDJ.transposeMax = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.transposeMax; }
  if ((v = bool(engine.getSetting("restoreKeyAfterFade"))) !== undefined) { midiAutoDJ.restoreKeyAfterFade = v; }
  if ((v = engine.getSetting("avoidRecentMinutes")) !== undefined) { midiAutoDJ.avoidRecentMinutes = num(v) !== undefined ? Math.max(0, Math.round(num(v))) : midiAutoDJ.avoidRecentMinutes; }
-if ((v = engine.getSetting("recentPlayedCachePath")) !== undefined && typeof v === "string") { midiAutoDJ.recentPlayedCachePath = v; }
+// recentPlayedCachePath not in XML (string type unsupported); set in script if needed
 };
 
 // Functions
@@ -624,7 +622,19 @@ if (deck1Playing && deck2Playing) {
                 midiAutoDJ.saveRecentPlayedCache();
                 var displayId = prevId.indexOf("/") >= 0 ? prevId.substring(prevId.lastIndexOf("/") + 1) : prevId;
                 if (displayId.length > 60) { displayId = displayId.substring(0, 57) + "..."; }
-                console.log("AutoDJ: Added to recent-played cache: " + displayId + " at " + new Date(playedAt).toLocaleString());
+                var songName = "";
+                try {
+                    if (typeof engine.getPlayer === "function") {
+                        var pl = engine.getPlayer("[Channel"+prev+"]") || engine.getPlayer("Channel"+prev);
+                        if (pl) {
+                            var a = (typeof pl.artist === "string" ? pl.artist : "") || "";
+                            var t = (typeof pl.title === "string" ? pl.title : "") || "";
+                            if (a || t) { songName = (a ? a + " - " : "") + t; }
+                        }
+                    }
+                } catch (e) { /* getPlayer or metadata not available in this context */ }
+                if (songName.length > 80) { songName = songName.substring(0, 77) + "..."; }
+                console.log("AutoDJ: Added to recent-played cache: " + (songName || displayId) + (songName ? " (" + displayId + ") " : " ") + "at " + new Date(playedAt).toLocaleString());
             }
         }
 

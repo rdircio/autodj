@@ -6,7 +6,7 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 
 - **Automatic song selection** with an adjustable tempo difference (BPM %) tolerance; tracks outside the tolerance are skipped.
 - **Automatic harmonic mixing and key transposition**: optionally matches the next track’s key to the current one during the mix, then restores the new track to its original key after the transition.
-- **Avoid recently played**: The script keeps a private list of tracks it has played (as the outgoing track) in the last N minutes (default 60) and skips them when choosing the next track; configurable in the preferences dialog (Tempo and key). Optionally the list can be persisted to a JSON file across Mixxx restarts if the build exposes file I/O (stock Mixxx does not; the option is ready for builds that do).
+- **Avoid recently played**: The script keeps a **memory-only** private list of tracks it has played (as the outgoing track) in the last N minutes (default 60) and skips them when choosing the next track; configurable in the preferences dialog (Tempo and key). The cache is cleared when Mixxx exits. File persistence is not available in stock Mixxx (no file I/O in controller scripts); the code is ready if a build exposes it.
 - **Entrance and exit cue points**: main cue or Intro Start for where the next track starts; hotcue (default 4) or Outro Start for where the current track ends the mix.
 - **Double and half time**: e.g. 160 BPM to 80 BPM; the script supports Mixxx’s double/half time sync.
 - **Bass EQ** for smoother transitions: incoming bass ramps in while outgoing bass stays solid; optional randomized EQ per transition.
@@ -63,11 +63,11 @@ The script picks the **best time to start mixing** the next song (e.g. when the 
 - **Hotcue 4** (default) – Set **hotcue 4** on the waveform where the current track should end the mix. You can change the hotcue number with **exitCue** in the script (e.g. `midiAutoDJ.exitCue = 4`).
 - **Outro Start** – Alternatively, set the “Outro Start” marker and set **useOutroForExit = 1** in the script.
 
-## Recent-played cache persistence
+## Recent-played cache (memory-only)
 
-The script can persist its “recently played” list to a **JSON file** so the same tracks are still avoided after restarting Mixxx. The file format is a single object: `{ "trackId": timestamp, ... }` (trackId is usually the track location; timestamps are milliseconds since epoch).
+The recent-played list is kept **in memory only** in stock Mixxx: it is cleared when you exit Mixxx. Tracks are identified by duration + BPM + sample count (no file path; `track_location` is not available in all builds). Within a session, the script avoids replaying any track that was the outgoing track in the last N minutes (see **avoidRecentMinutes**).
 
-**Stock Mixxx does not expose file I/O** to controller scripts (no `engine.getPath`, `engine.readFile`, or `engine.writeFile` in the public API), so with an unmodified build the cache is **in-memory only** and is cleared when Mixxx exits. The script is written so that if a future or patched Mixxx exposes those APIs, persistence will work without code changes: set **recentPlayedCachePath** to a full path, or leave it empty to use the settings directory plus `autodj_recent_played.json`. On load, entries older than **avoidRecentMinutes** are dropped.
+Optional file persistence (so the list survives restarts) would require Mixxx to expose file I/O to controller scripts (`engine.getPath`, `engine.readFile`, `engine.writeFile`). Stock Mixxx does not; the script is written so that if a future or patched build exposes those APIs, setting **recentPlayedCachePath** (in the script) would enable it. The file format would be JSON: `{ "trackId": timestamp, ... }`.
 
 ## Key behaviour
 
@@ -108,7 +108,7 @@ You can still edit `AutoDJ.js` to change default behaviour. Main options at the 
 | **transpose** | 1 | Harmonic mixing (key matching). Set **0** to keep every song in its original key (no transposition). |
 | **restoreKeyAfterFade** | 1 | After the mix, restore the new track to its original key. Set 0 to leave it transposed. |
 | **avoidRecentMinutes** | 60 | Minutes to avoid re-playing a track after it was the outgoing track in a transition (0 = disabled). |
-| **recentPlayedCachePath** | "" | Full path to a JSON file to persist the recent-played list across restarts (e.g. `~/.mixxx/autodj_recent_played.json`). Empty = use settings dir + `autodj_recent_played.json` if `engine.getPath` is available. **Stock Mixxx does not expose file I/O** to controller scripts, so the cache is in-memory only unless you use a build that exposes `engine.getPath`, `engine.readFile`, and `engine.writeFile`. |
+| **recentPlayedCachePath** | "" | Cache is **memory-only** in stock Mixxx (no file I/O). Optional: full path to a JSON file to persist across restarts if your build exposes `engine.getPath`, `engine.readFile`, `engine.writeFile`. Set in script only (no XML option). |
 
 ## Tips
 
