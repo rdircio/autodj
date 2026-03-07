@@ -6,6 +6,7 @@ Improved automatic DJing for Mixxx, based on [byronxu99/AutoDJ](https://github.c
 
 - **Automatic song selection** with an adjustable tempo difference (BPM %) tolerance; tracks outside the tolerance are skipped.
 - **Automatic harmonic mixing and key transposition**: optionally matches the next track’s key to the current one during the mix, then restores the new track to its original key after the transition.
+- **Avoid recently played**: The script keeps a private list of tracks it has played (as the outgoing track) in the last N minutes (default 60) and skips them when choosing the next track; configurable in the preferences dialog (Tempo and key).
 - **Entrance and exit cue points**: main cue or Intro Start for where the next track starts; hotcue (default 4) or Outro Start for where the current track ends the mix.
 - **Double and half time**: e.g. 160 BPM to 80 BPM; the script supports Mixxx’s double/half time sync.
 - **Bass EQ** for smoother transitions: incoming bass ramps in while outgoing bass stays solid; optional randomized EQ per transition.
@@ -100,6 +101,7 @@ You can still edit `AutoDJ.js` to change default behaviour. Main options at the 
 | **logSkipReasons** | 1 | Print to Mixxx log why a track was skipped (Debug). Set 0 to disable. |
 | **transpose** | 1 | Harmonic mixing (key matching). Set **0** to keep every song in its original key (no transposition). |
 | **restoreKeyAfterFade** | 1 | After the mix, restore the new track to its original key. Set 0 to leave it transposed. |
+| **avoidRecentMinutes** | 60 | Minutes to avoid re-playing a track after it was the outgoing track in a transition (0 = disabled). |
 
 ## Tips
 

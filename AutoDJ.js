@@ -172,6 +172,10 @@ midiAutoDJ.logSkipReasons = 0;
 // When the script skips a track, print the reason to the Mixxx log (Debug). Set to 1 to enable (can add load when many skips).
 // Unit: Boolean (0 or 1); Default: 1
 
+midiAutoDJ.avoidRecentMinutes = 60;
+// Skip tracks that were played in the last N minutes (script keeps its own cache; Mixxx also updates "last played" in the library).
+// Set to 0 to disable. Unit: Integer (minutes); Default: 60 (1 hour).
+
 midiAutoDJ.alignBeatgridAtEntrance = 1;
 // When you seek to Intro Start or main cue (entrance), align the beatgrid so the closest beat
 // is at that position. Use this when auto beat detection is "off by half a beat": set your
@@ -262,6 +266,18 @@ midiAutoDJ.transitionTargetDeck = 0; // Deck that is coming in (1 or 2), set whe
 midiAutoDJ.fadeSourceHoldTicksLeft = 0; // Countdown for holding crossfader at source full (set when we prepare; decremented in fade block).
 midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in loop), our position 0..1; -1 = not driving (so we don't rely on engine value which Mixxx overwrites).
 midiAutoDJ.autoDJConnection = null; // engine.makeConnection object for [AutoDJ] enabled; used in init/shutdown.
+midiAutoDJ.recentPlayed = {}; // { trackId: timestamp } for avoidRecentMinutes; pruned each tick.
+midiAutoDJ.lastMarkedPrevTrackId = null; // So we only mark the outgoing track once per transition.
+
+// Return a stable id for the track loaded on deck (for avoidRecentMinutes). Uses track_location if available, else duration+bpm+samples.
+midiAutoDJ.getTrackId = function(deck) {
+ var loc = engine.getValue("[Channel"+deck+"]", "track_location");
+ if (typeof loc === "string" && loc.length > 0) { return loc; }
+ var dur = engine.getValue("[Channel"+deck+"]", "duration");
+ var bpm = engine.getValue("[Channel"+deck+"]", "file_bpm");
+ var samples = engine.getValue("[Channel"+deck+"]", "track_samples");
+ return (dur || 0) + "," + (bpm || 0) + "," + (samples || 0);
+};
 
 // Apply controller settings from the mapping XML (Preferences > Controllers > [device] settings).
 // When the script is loaded via AutoDJ.midi.xml (or any mapping that defines these settings),
@@ -309,6 +325,7 @@ midiAutoDJ.applySettings = function() {
  if ((v = bool(engine.getSetting("transpose"))) !== undefined) { midiAutoDJ.transpose = v; }
  if ((v = engine.getSetting("transposeMax")) !== undefined) { midiAutoDJ.transposeMax = num(v) !== undefined ? Math.round(num(v)) : midiAutoDJ.transposeMax; }
  if ((v = bool(engine.getSetting("restoreKeyAfterFade"))) !== undefined) { midiAutoDJ.restoreKeyAfterFade = v; }
+ if ((v = engine.getSetting("avoidRecentMinutes")) !== undefined) { midiAutoDJ.avoidRecentMinutes = num(v) !== undefined ? Math.max(0, Math.round(num(v))) : midiAutoDJ.avoidRecentMinutes; }
 };
 
 // Functions
@@ -544,6 +561,15 @@ if (deck1Playing && deck2Playing) {
  skip = 0;
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.lastTransitionUseEQ = midiAutoDJ.thisTransitionUseEQ;
+
+        // Mark the outgoing (prev) track as played for avoidRecentMinutes
+        if (midiAutoDJ.avoidRecentMinutes > 0) {
+            var prevId = midiAutoDJ.getTrackId(prev);
+            if (prevId && prevId !== midiAutoDJ.lastMarkedPrevTrackId) {
+                midiAutoDJ.recentPlayed[prevId] = Date.now();
+                midiAutoDJ.lastMarkedPrevTrackId = prevId;
+            }
+        }
 
         // When outgoing deck has a loop, we take full control of the crossfader (skip hold, drive from our own position so Mixxx can't pull it back).
         var sourceLoopActive = engine.getValue("[Channel"+prev+"]", "loop_enabled");
@@ -804,9 +830,19 @@ if (midiAutoDJ.randomEffectDuringFade) {
  // * keeps code simple, Mixxx scripting is not made for this task
  // * does not mess with Auto-DJ track source settings or queue ordering
 
- // Is the BPM difference too much? (only when both direct and double/half exceed tolerance)
  var skipReason = "";
- if ( isFinite(diffBpm) && isFinite(diffBpmDouble) && diffBpm > midiAutoDJ.maxBpmAdjustment && diffBpmDouble > midiAutoDJ.maxBpmAdjustment ) {
+ if (midiAutoDJ.avoidRecentMinutes > 0) {
+  var now = Date.now();
+  var cutoff = now - midiAutoDJ.avoidRecentMinutes * 60 * 1000;
+  for (var rid in midiAutoDJ.recentPlayed) { if (midiAutoDJ.recentPlayed[rid] < cutoff) { delete midiAutoDJ.recentPlayed[rid]; } }
+  var nextId = midiAutoDJ.getTrackId(next);
+  if (nextId && midiAutoDJ.recentPlayed[nextId] !== undefined) {
+   skip = 1;
+   skipReason = "played in the last " + midiAutoDJ.avoidRecentMinutes + " minutes";
+  }
+ }
+ // Is the BPM difference too much? (only when both direct and double/half exceed tolerance)
+ if ( !skip && isFinite(diffBpm) && isFinite(diffBpmDouble) && diffBpm > midiAutoDJ.maxBpmAdjustment && diffBpmDouble > midiAutoDJ.maxBpmAdjustment ) {
  skip = 1;
  skipReason = "BPM difference too large (prev " + prevBpm.toFixed(1) + " next " + nextBpm.toFixed(1) + " diff " + diffBpm.toFixed(1) + "% direct, " + diffBpmDouble.toFixed(1) + "% double/half, max " + midiAutoDJ.maxBpmAdjustment + "%)";
  }
@@ -847,6 +883,7 @@ if (midiAutoDJ.transpose && !skip) {
  skip = 0;
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.originalKeyNext = undefined;
+ midiAutoDJ.lastMarkedPrevTrackId = null;
  if (midiAutoDJ.deferredSnapTimerId) {
  engine.stopTimer(midiAutoDJ.deferredSnapTimerId);
  midiAutoDJ.deferredSnapTimerId = 0;

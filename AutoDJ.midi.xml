@@ -46,6 +46,7 @@
                 <option variable="transpose" type="boolean" label="Harmonic mixing (transpose)" default="false" description="Transpose the next track to match the current track's key during the mix."/>
                 <option variable="transposeMax" type="integer" label="Max transposition (semitones)" default="1" min="0" max="6" description="Maximum semitones to transpose for key matching."/>
                 <option variable="restoreKeyAfterFade" type="boolean" label="Restore key after fade" default="true" description="After the transition, restore the new track to its original key."/>
+                <option variable="avoidRecentMinutes" type="integer" label="Avoid tracks played in last (minutes)" default="60" min="0" max="1440" description="Skip tracks that were played in the last N minutes (0 = disabled). The script keeps its own cache; Mixxx also updates last played in the library."/>
             </group>
     </settings>
     <controller id="AutoDJ">
