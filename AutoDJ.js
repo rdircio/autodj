@@ -264,6 +264,18 @@ midiAutoDJ.thisTransitionEffectSlotWet = 0.8; // random slot parameter1 (wet) fo
 midiAutoDJ.lastTransitionEffectUnit = 0;
 midiAutoDJ.lastTransitionEffectSlot = 1;
 midiAutoDJ.loggedThisTransitionEffect = false;
+// Cached control strings for effect rack (reused each tick to avoid per-transition string allocations and GC pressure).
+midiAutoDJ._effectGroupCache = {};
+midiAutoDJ._effectSlotCache = {};
+midiAutoDJ._effectGroupKey = function(unit) {
+    if (midiAutoDJ._effectGroupCache[unit] === undefined) { midiAutoDJ._effectGroupCache[unit] = "[EffectRack1_EffectUnit" + unit + "]"; }
+    return midiAutoDJ._effectGroupCache[unit];
+};
+midiAutoDJ._effectSlotKey = function(unit, slot) {
+    var k = unit + "_" + slot;
+    if (midiAutoDJ._effectSlotCache[k] === undefined) { midiAutoDJ._effectSlotCache[k] = "[EffectRack1_EffectUnit" + unit + "_Effect" + slot + "]"; }
+    return midiAutoDJ._effectSlotCache[k];
+};
 midiAutoDJ.transitionTargetDeck = 0; // Deck that is coming in (1 or 2), set when we prepare; used for bass so direction is correct for both 1->2 and 2->1
 midiAutoDJ.fadeSourceHoldTicksLeft = 0; // Countdown for holding crossfader at source full (set when we prepare; decremented in fade block).
 midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in loop), our position 0..1; -1 = not driving (so we don't rely on engine value which Mixxx overwrites).
@@ -708,25 +720,24 @@ if (deck1Playing && deck2Playing) {
         if (midiAutoDJ.randomEffectDuringFade && midiAutoDJ.thisTransitionEffectUnit > 0 && midiAutoDJ.thisTransitionEffectSlot >= 1 && midiAutoDJ.thisTransitionEffectSlot <= 3) {
             var eu = midiAutoDJ.thisTransitionEffectUnit;
             var slot = midiAutoDJ.thisTransitionEffectSlot;
-            var group = "[EffectRack1_EffectUnit"+eu+"]";
+            var group = midiAutoDJ._effectGroupKey(eu);
             // First tick of this transition: ensure only one effect is on by turning all managed units off, then enable our one.
             if (!midiAutoDJ.loggedThisTransitionEffect) {
                 var units = midiAutoDJ.randomEffectUnits;
                 if (units && units.length > 0) {
                     for (var u = 0; u < units.length; u++) {
                         var un = units[u];
-                        var g = "[EffectRack1_EffectUnit"+un+"]";
+                        var g = midiAutoDJ._effectGroupKey(un);
                         engine.setValue(g, "enabled", 0.0);
                         engine.setValue(g, "mix", 0.0);
                         engine.setValue(g, "group_[Channel1]_enable", 0.0);
                         engine.setValue(g, "group_[Channel2]_enable", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect1]", "enabled", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect2]", "enabled", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect3]", "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 1), "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 2), "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 3), "enabled", 0.0);
                     }
                 }
-                // Set slot wet (parameter1) to randomized value for this transition (> 50%).
-                engine.setValue("[EffectRack1_EffectUnit"+eu+"_Effect"+slot+"]", "parameter1", midiAutoDJ.thisTransitionEffectSlotWet);
+                engine.setValue(midiAutoDJ._effectSlotKey(eu, slot), "parameter1", midiAutoDJ.thisTransitionEffectSlotWet);
                 if (midiAutoDJ.logEffectActivation) {
                     print("[AutoDJ script] Effect FX"+eu+" slot "+slot+" on outgoing deck (Channel"+prev+"), mix ramping");
                 }
@@ -735,23 +746,23 @@ if (deck1Playing && deck2Playing) {
             engine.setValue(group, "group_[Channel"+prev+"]_enable", 1.0);
             engine.setValue(group, "group_[Channel"+next+"]_enable", 0.0);
             engine.setValue(group, "enabled", 1.0);
-            engine.setValue("[EffectRack1_EffectUnit"+eu+"_Effect"+slot+"]", "enabled", 1.0);
+            engine.setValue(midiAutoDJ._effectSlotKey(eu, slot), "enabled", 1.0);
             var mix = (midiAutoDJ.thisTransitionEffectMix != null ? midiAutoDJ.thisTransitionEffectMix : 0.8) * 4 * crossfader * (1.0 - crossfader);
             engine.setValue(group, "mix", mix);
             if (crossfader >= 0.99) {
-                // End of fade: turn off all managed effect units and slots so nothing stays on.
+                // End of fade: turn off all managed effect units and slots; clear transition state so GC can reclaim.
                 var unitsEnd = midiAutoDJ.randomEffectUnits;
                 if (unitsEnd && unitsEnd.length > 0) {
                     for (var ue = 0; ue < unitsEnd.length; ue++) {
                         var un = unitsEnd[ue];
-                        var ge = "[EffectRack1_EffectUnit"+un+"]";
+                        var ge = midiAutoDJ._effectGroupKey(un);
                         engine.setValue(ge, "enabled", 0.0);
                         engine.setValue(ge, "mix", 0.0);
                         engine.setValue(ge, "group_[Channel1]_enable", 0.0);
                         engine.setValue(ge, "group_[Channel2]_enable", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect1]", "enabled", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect2]", "enabled", 0.0);
-                        engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect3]", "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 1), "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 2), "enabled", 0.0);
+                        engine.setValue(midiAutoDJ._effectSlotKey(un, 3), "enabled", 0.0);
                     }
                 }
                 if (midiAutoDJ.logEffectActivation) {
@@ -760,6 +771,9 @@ if (deck1Playing && deck2Playing) {
                 midiAutoDJ.lastTransitionEffectUnit = eu;
                 midiAutoDJ.lastTransitionEffectSlot = slot;
                 midiAutoDJ.thisTransitionEffectUnit = 0;
+                midiAutoDJ.thisTransitionEffectSlot = 0;
+                midiAutoDJ.thisTransitionEffectMix = null;
+                midiAutoDJ.thisTransitionEffectSlotWet = null;
             }
         }
 
@@ -816,6 +830,13 @@ if (deck1Playing && deck2Playing) {
 
  } else { // Next track is stopped --> Disable sync and refine track selection
  midiAutoDJ.drivenCrossfaderWhenLoop = -1; // clear so next transition doesn't reuse
+ // Clear all transition-only state so nothing is retained and GC can reclaim; avoids reusing stale values.
+ midiAutoDJ.transitionTargetDeck = 0;
+ midiAutoDJ.fadeSourceHoldTicksLeft = 0;
+ midiAutoDJ.thisTransitionPreStartNextBeats = 0;
+ midiAutoDJ.thisTransitionUseEQ = 0;
+ midiAutoDJ.thisTransitionEQStep = 0;
+ midiAutoDJ.loggedThisTransitionEffect = false;
  // After an EQ transition, set bass to normal once so the user can then adjust it (we don't keep writing so the user keeps control).
     if (midiAutoDJ.lastTransitionUseEQ) {
         engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
@@ -843,24 +864,28 @@ if (deck1Playing && deck2Playing) {
  engine.setValue("[QuickEffectRack1_[Channel"+prev+"]]", "super1", 0.5);
  }
 
-// After transition: ensure all managed effect units are off (one effect at a time; leave everything off when done).
+// After transition: ensure all managed effect units are off (one effect at a time; leave everything off when done). Clear transition state for GC.
 if (midiAutoDJ.randomEffectDuringFade) {
     var unitsClean = midiAutoDJ.randomEffectUnits;
     if (unitsClean && unitsClean.length > 0) {
         for (var uc = 0; uc < unitsClean.length; uc++) {
             var un = unitsClean[uc];
-            var g = "[EffectRack1_EffectUnit"+un+"]";
+            var g = midiAutoDJ._effectGroupKey(un);
             engine.setValue(g, "enabled", 0.0);
             engine.setValue(g, "mix", 0.0);
             engine.setValue(g, "group_[Channel1]_enable", 0.0);
             engine.setValue(g, "group_[Channel2]_enable", 0.0);
-            engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect1]", "enabled", 0.0);
-            engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect2]", "enabled", 0.0);
-            engine.setValue("[EffectRack1_EffectUnit"+un+"_Effect3]", "enabled", 0.0);
+            engine.setValue(midiAutoDJ._effectSlotKey(un, 1), "enabled", 0.0);
+            engine.setValue(midiAutoDJ._effectSlotKey(un, 2), "enabled", 0.0);
+            engine.setValue(midiAutoDJ._effectSlotKey(un, 3), "enabled", 0.0);
         }
     }
     midiAutoDJ.lastTransitionEffectUnit = 0;
     midiAutoDJ.lastTransitionEffectSlot = 0;
+    midiAutoDJ.thisTransitionEffectUnit = 0;
+    midiAutoDJ.thisTransitionEffectSlot = 0;
+    midiAutoDJ.thisTransitionEffectMix = null;
+    midiAutoDJ.thisTransitionEffectSlotWet = null;
 }
 
  // Check if we are at the exit point of the current song
@@ -961,6 +986,17 @@ if (midiAutoDJ.transpose && !skip) {
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.originalKeyNext = undefined;
  midiAutoDJ.lastMarkedPrevTrackId = null;
+ // Clear transition-only state so nothing is retained (no transition completed).
+ midiAutoDJ.transitionTargetDeck = 0;
+ midiAutoDJ.fadeSourceHoldTicksLeft = 0;
+ midiAutoDJ.thisTransitionPreStartNextBeats = 0;
+ midiAutoDJ.thisTransitionUseEQ = 0;
+ midiAutoDJ.thisTransitionEQStep = 0;
+ midiAutoDJ.thisTransitionEffectUnit = 0;
+ midiAutoDJ.thisTransitionEffectSlot = 0;
+ midiAutoDJ.thisTransitionEffectMix = null;
+ midiAutoDJ.thisTransitionEffectSlotWet = null;
+ midiAutoDJ.loggedThisTransitionEffect = false;
  if (midiAutoDJ.deferredSnapTimerId) {
  engine.stopTimer(midiAutoDJ.deferredSnapTimerId);
  midiAutoDJ.deferredSnapTimerId = 0;
