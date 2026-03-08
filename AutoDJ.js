@@ -269,6 +269,7 @@ midiAutoDJ.fadeSourceHoldTicksLeft = 0; // Countdown for holding crossfader at s
 midiAutoDJ.drivenCrossfaderWhenLoop = -1; // When driving crossfader (source in loop), our position 0..1; -1 = not driving (so we don't rely on engine value which Mixxx overwrites).
 midiAutoDJ.autoDJConnection = null; // engine.makeConnection object for [AutoDJ] enabled; used in init/shutdown.
 midiAutoDJ.recentPlayed = {}; // { trackId: timestamp } for avoidRecentMinutes; pruned each tick.
+midiAutoDJ.recentPlayedMaxSize = 500; // Safety cap: if cache exceeds this, clear it (prevents unbounded growth).
 midiAutoDJ.lastMarkedPrevTrackId = null; // So we only mark the outgoing track once per transition.
 midiAutoDJ.RECENT_PLAYED_CACHE_FILENAME = "autodj_recent_played.json";
 
@@ -616,6 +617,12 @@ if (deck1Playing && deck2Playing) {
         if (midiAutoDJ.avoidRecentMinutes > 0) {
             var prevId = midiAutoDJ.getTrackId(prev);
             if (prevId && prevId !== midiAutoDJ.lastMarkedPrevTrackId) {
+                var rpCount = 0;
+                for (var _rp in midiAutoDJ.recentPlayed) { rpCount++; }
+                if (rpCount >= midiAutoDJ.recentPlayedMaxSize) {
+                    midiAutoDJ.recentPlayed = {};
+                    if (!midiAutoDJ._recentPlayedCapLogged) { midiAutoDJ._recentPlayedCapLogged = true; console.log("AutoDJ: recent-played cache cleared (size cap " + midiAutoDJ.recentPlayedMaxSize + " reached)."); }
+                }
                 var playedAt = Date.now();
                 midiAutoDJ.recentPlayed[prevId] = playedAt;
                 midiAutoDJ.lastMarkedPrevTrackId = prevId;
