@@ -23,6 +23,8 @@ function midiAutoDJ() {}
 
 // BASIC OPTIONS
 
+midiAutoDJ.version = "1.0.0"; // Keep in sync with VERSION file in the repo
+
 midiAutoDJ.exitCue = 4;
 // Hotcue number to mark the exit point (where the current track ends the mix).
 // Set this hotcue on the waveform for each track. Unit: Integer; Default: 4

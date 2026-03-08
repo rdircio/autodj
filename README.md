@@ -117,6 +117,22 @@ You can still edit `AutoDJ.js` to change default behaviour. Main options at the 
 - More options are in **Options → Preferences → Auto DJ**. See [Mixxx Auto DJ spec](https://blueprints.launchpad.net/mixxx/+spec/auto-dj-crates).
 - Try the crossfader in **additive** vs **constant power** mode; you may prefer one over the other.
 
+## Versioning
+
+The repo uses **semantic versioning** (e.g. `1.0.0`). You can see which version you have in two ways:
+
+- **VERSION** – A single line in the repo root (e.g. `1.0.0`). Use this for scripts or to check the release version.
+- **In the script** – `midiAutoDJ.version` at the top of `AutoDJ.js` (kept in sync with **VERSION**).
+
+Releases can be tagged in Git (e.g. `v1.0.0`). To tag the current commit and push the tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To list tags: `git tag -l`.
+
 ## Files
 
 - **AutoDJ.js** – Controller script (edit this, then run `./install-autodj.sh`).
