@@ -569,6 +569,9 @@ midiAutoDJ.main = function() { // Called by timer
 
  var nextPlaying = engine.getValue("[Channel"+next+"]", "play_indicator");
 
+ // Reset "was in fade" when not both playing, so we don't clear transition state on the next "else" run before fade starts (nextPos <= -0.15).
+ if (!(deck1Playing && deck2Playing)) { midiAutoDJ._wasInFade = false; }
+
  var prevBpm = engine.getValue("[Channel"+prev+"]", "file_bpm");
  var nextBpm = engine.getValue("[Channel"+next+"]", "file_bpm");
 
@@ -621,6 +624,7 @@ if (deck1Playing && deck2Playing) {
 
    // Next track is playing --> Fade in progress
     if (nextPlaying && nextPos > -0.15) {
+ midiAutoDJ._wasInFade = true; // so we only clear transition state when we leave the fade, not when "else" runs before fade starts (nextPos <= -0.15)
  skip = 0;
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.lastTransitionUseEQ = midiAutoDJ.thisTransitionUseEQ;
@@ -828,15 +832,41 @@ if (deck1Playing && deck2Playing) {
  }
  }
 
- } else { // Next track is stopped --> Disable sync and refine track selection
+ } else { // Next track is stopped (or not started yet: nextPos <= -0.15) --> Disable sync and refine track selection
  midiAutoDJ.drivenCrossfaderWhenLoop = -1; // clear so next transition doesn't reuse
- // Clear all transition-only state so nothing is retained and GC can reclaim; avoids reusing stale values.
- midiAutoDJ.transitionTargetDeck = 0;
- midiAutoDJ.fadeSourceHoldTicksLeft = 0;
- midiAutoDJ.thisTransitionPreStartNextBeats = 0;
- midiAutoDJ.thisTransitionUseEQ = 0;
- midiAutoDJ.thisTransitionEQStep = 0;
- midiAutoDJ.loggedThisTransitionEffect = false;
+ // Only clear transition state when we have just left the fade (_wasInFade was set in fade block). Otherwise we're in "else" because next track hasn't started yet (nextPos <= -0.15) and we must not wipe transitionTargetDeck/thisTransitionUseEQ/effect state or bass and randomEffectDuringFade would break.
+ if (midiAutoDJ._wasInFade) {
+     midiAutoDJ._wasInFade = false;
+     midiAutoDJ.transitionTargetDeck = 0;
+     midiAutoDJ.fadeSourceHoldTicksLeft = 0;
+     midiAutoDJ.thisTransitionPreStartNextBeats = 0;
+     midiAutoDJ.thisTransitionUseEQ = 0;
+     midiAutoDJ.thisTransitionEQStep = 0;
+     midiAutoDJ.loggedThisTransitionEffect = false;
+     // Turn off all managed effect units and clear effect state only when transition has actually ended (not when "else" runs before fade starts).
+     if (midiAutoDJ.randomEffectDuringFade) {
+         var unitsClean = midiAutoDJ.randomEffectUnits;
+         if (unitsClean && unitsClean.length > 0) {
+             for (var uc = 0; uc < unitsClean.length; uc++) {
+                 var un = unitsClean[uc];
+                 var g = midiAutoDJ._effectGroupKey(un);
+                 engine.setValue(g, "enabled", 0.0);
+                 engine.setValue(g, "mix", 0.0);
+                 engine.setValue(g, "group_[Channel1]_enable", 0.0);
+                 engine.setValue(g, "group_[Channel2]_enable", 0.0);
+                 engine.setValue(midiAutoDJ._effectSlotKey(un, 1), "enabled", 0.0);
+                 engine.setValue(midiAutoDJ._effectSlotKey(un, 2), "enabled", 0.0);
+                 engine.setValue(midiAutoDJ._effectSlotKey(un, 3), "enabled", 0.0);
+             }
+         }
+         midiAutoDJ.lastTransitionEffectUnit = 0;
+         midiAutoDJ.lastTransitionEffectSlot = 0;
+         midiAutoDJ.thisTransitionEffectUnit = 0;
+         midiAutoDJ.thisTransitionEffectSlot = 0;
+         midiAutoDJ.thisTransitionEffectMix = null;
+         midiAutoDJ.thisTransitionEffectSlotWet = null;
+     }
+ }
  // After an EQ transition, set bass to normal once so the user can then adjust it (we don't keep writing so the user keeps control).
     if (midiAutoDJ.lastTransitionUseEQ) {
         engine.setValue("[EqualizerRack1_[Channel"+prev+"]_Effect1]", "parameter1", midiAutoDJ.normalBassLevel);
@@ -863,30 +893,6 @@ if (deck1Playing && deck2Playing) {
  // In case the transition ended to quickly
  engine.setValue("[QuickEffectRack1_[Channel"+prev+"]]", "super1", 0.5);
  }
-
-// After transition: ensure all managed effect units are off (one effect at a time; leave everything off when done). Clear transition state for GC.
-if (midiAutoDJ.randomEffectDuringFade) {
-    var unitsClean = midiAutoDJ.randomEffectUnits;
-    if (unitsClean && unitsClean.length > 0) {
-        for (var uc = 0; uc < unitsClean.length; uc++) {
-            var un = unitsClean[uc];
-            var g = midiAutoDJ._effectGroupKey(un);
-            engine.setValue(g, "enabled", 0.0);
-            engine.setValue(g, "mix", 0.0);
-            engine.setValue(g, "group_[Channel1]_enable", 0.0);
-            engine.setValue(g, "group_[Channel2]_enable", 0.0);
-            engine.setValue(midiAutoDJ._effectSlotKey(un, 1), "enabled", 0.0);
-            engine.setValue(midiAutoDJ._effectSlotKey(un, 2), "enabled", 0.0);
-            engine.setValue(midiAutoDJ._effectSlotKey(un, 3), "enabled", 0.0);
-        }
-    }
-    midiAutoDJ.lastTransitionEffectUnit = 0;
-    midiAutoDJ.lastTransitionEffectSlot = 0;
-    midiAutoDJ.thisTransitionEffectUnit = 0;
-    midiAutoDJ.thisTransitionEffectSlot = 0;
-    midiAutoDJ.thisTransitionEffectMix = null;
-    midiAutoDJ.thisTransitionEffectSlotWet = null;
-}
 
  // Check if we are at the exit point of the current song
  // Begin the transition to the next song if this is the case
