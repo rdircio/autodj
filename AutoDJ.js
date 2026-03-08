@@ -232,7 +232,7 @@ midiAutoDJ.refineDuration = 1000; // Duration of sleeping between two track skip
 // for the next track, increase this value.
 // Note: Must NOT be smaller than midiAutoDJ.sleepDuration
 // Unit: Milliseconds; Default: 1000
-midiAutoDJ.sleepDuration = 1000; // Duration of sleeping between actions.
+midiAutoDJ.sleepDuration = 2000; // Duration of sleeping between actions (ms). Higher = less CPU/log load, slightly slower reaction.
 // Higher values reduce CPU load and can prevent hangs/beachballs; lower gives snappier response.
 // Unit: Milliseconds; Default: 1000 (use 500–750 if no hangs; 1000+ if Mixxx beachballs)
 
@@ -908,6 +908,7 @@ if (midiAutoDJ.randomEffectDuringFade) {
    var cacheCount = 0;
    for (var _ in midiAutoDJ.recentPlayed) { cacheCount++; }
    skipReason = "played in the last " + midiAutoDJ.avoidRecentMinutes + " minutes (" + cacheCount + " tracks in cache)";
+   console.log("AutoDJ: Skipped (recent-played cache hit) track id: " + nextId);
   }
  }
  // Is the BPM difference too much? (only when both direct and double/half exceed tolerance)
