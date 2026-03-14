@@ -120,12 +120,12 @@ midiAutoDJ.maxBpmAdjustment = 12;
 // Note that Mixxx can do double/half time mixing, e.g. sync 80bpm to 160bpm
 // Unit: Percentage (not absolute BPM), Integer; Default: 25 (was 12; increase if all tracks get skipped)
 
-midiAutoDJ.transpose = 0;
+midiAutoDJ.transpose = 1;
 // Toggles whether to transpose the next track to match the previous (harmonic mixing).
 // Set to 0 to keep every song in its original key (no key matching; next track never transposed).
 // Unit: Boolean (0 or 1); Default: 0 (disabled). Set to 1 to enable harmonic mixing.
 
-midiAutoDJ.transposeMax = 1;
+midiAutoDJ.transposeMax = 12;
 // Maximum acceptable transposition in semitones
 // Transposing by more than 1 tends to sound bad. However,
 // if this script is unable to find a suitable song, it will ignore this limit.
@@ -571,8 +571,26 @@ midiAutoDJ.main = function() { // Called by timer
 
  var nextPlaying = engine.getValue("[Channel"+next+"]", "play_indicator");
 
- // Reset "was in fade" when not both playing, so we don't clear transition state on the next "else" run before fade starts (nextPos <= -0.15).
- if (!(deck1Playing && deck2Playing)) { midiAutoDJ._wasInFade = false; }
+ // When the outgoing deck stops we get only one deck playing — run key reset and cleanup here (we never reach the inner _wasInFade block).
+ if (!(deck1Playing && deck2Playing)) {
+     if (midiAutoDJ._wasInFade) {
+         if (midiAutoDJ.restoreKeyAfterFade && midiAutoDJ.transitionTargetDeck >= 1 && midiAutoDJ.transitionTargetDeck <= 2) {
+             var td = midiAutoDJ.transitionTargetDeck;
+             engine.setValue("[Channel"+td+"]", "reset_key", 1.0);
+             engine.setValue("[Channel"+td+"]", "reset_key", 0.0);
+             // Fallback: set key to file_key in case reset_key does not restore display/pitch in this build
+             var fk = engine.getValue("[Channel"+td+"]", "file_key");
+             if (fk !== undefined && fk !== null) {
+                 engine.setValue("[Channel"+td+"]", "key", fk);
+             }
+         }
+         midiAutoDJ.originalKeyNext = undefined;
+         midiAutoDJ.transitionTargetDeck = 0;
+         midiAutoDJ._keyMatchedThisFade = false;
+         midiAutoDJ._skipKeyMatchThisTrack = false;
+     }
+     midiAutoDJ._wasInFade = false;
+ }
 
  var prevBpm = engine.getValue("[Channel"+prev+"]", "file_bpm");
  var nextBpm = engine.getValue("[Channel"+next+"]", "file_bpm");
@@ -630,6 +648,23 @@ if (deck1Playing && deck2Playing) {
  skip = 0;
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.lastTransitionUseEQ = midiAutoDJ.thisTransitionUseEQ;
+
+        // Match key when the transition starts (first tick of fade), then keep it matched until we restore to original at the end.
+        if (midiAutoDJ.transpose && midiAutoDJ.originalKeyNext !== undefined && !midiAutoDJ._skipKeyMatchThisTrack) {
+            if (!midiAutoDJ._keyMatchedThisFade) {
+                // Reset next deck to its file key first, then sync to prev so the match is applied correctly.
+                engine.setValue("[Channel"+next+"]", "reset_key", 1.0);
+                engine.setValue("[Channel"+next+"]", "reset_key", 0.0);
+                engine.setValue("[Channel"+prev+"]", "sync_mode", 2.0);
+                engine.setValue("[Channel"+next+"]", "sync_mode", 1.0);
+                engine.setValue("[Channel"+next+"]", "sync_key", 1.0);
+                engine.setValue("[Channel"+next+"]", "sync_key", 0.0);
+                midiAutoDJ._keyMatchedThisFade = true;
+            }
+            if (crossfader <= 0.85) {
+                engine.setValue("[Channel"+next+"]", "key", engine.getValue("[Channel"+prev+"]", "key"));
+            }
+        }
 
         // Mark the outgoing (prev) track as played for avoidRecentMinutes
         if (midiAutoDJ.avoidRecentMinutes > 0) {
@@ -783,17 +818,7 @@ if (deck1Playing && deck2Playing) {
             }
         }
 
- if (midiAutoDJ.restoreKeyAfterFade && midiAutoDJ.originalKeyNext !== undefined && crossfader > 0.85) {
- var curKey = engine.getValue("[Channel"+next+"]", "key");
- var diff = midiAutoDJ.originalKeyNext - curKey;
- if (Math.abs(diff) > 0.005) {
- var step = diff * midiAutoDJ.keyRestoreRate;
- engine.setValue("[Channel"+next+"]", "key", curKey + step);
- } else {
- engine.setValue("[Channel"+next+"]", "key", midiAutoDJ.originalKeyNext);
- midiAutoDJ.originalKeyNext = undefined;
- }
- }
+ // (Key reset to original is done when we leave the fade, in the _wasInFade block below — we often never get crossfader >= 0.99 here because the outgoing deck stops first.)
 
  if ( midiAutoDJ.bpmSync ) {
  // Note: In order to get BPM to sync, but not key, and to get beats aligned nicely,
@@ -839,6 +864,14 @@ if (deck1Playing && deck2Playing) {
  // Only clear transition state when we have just left the fade (_wasInFade was set in fade block). Otherwise we're in "else" because next track hasn't started yet (nextPos <= -0.15) and we must not wipe transitionTargetDeck/thisTransitionUseEQ/effect state or bass and randomEffectDuringFade would break.
  if (midiAutoDJ._wasInFade) {
      midiAutoDJ._wasInFade = false;
+     midiAutoDJ._keyMatchedThisFade = false;
+     midiAutoDJ._skipKeyMatchThisTrack = false;
+     // Reset the destination deck to its original key now that the transition has ended (we never get crossfader >= 0.99 in the fade block because the outgoing deck stops and we leave "both playing").
+     if (midiAutoDJ.restoreKeyAfterFade && midiAutoDJ.transitionTargetDeck >= 1 && midiAutoDJ.transitionTargetDeck <= 2) {
+         engine.setValue("[Channel"+midiAutoDJ.transitionTargetDeck+"]", "reset_key", 1.0);
+         engine.setValue("[Channel"+midiAutoDJ.transitionTargetDeck+"]", "reset_key", 0.0);
+     }
+     midiAutoDJ.originalKeyNext = undefined;
      midiAutoDJ.transitionTargetDeck = 0;
      midiAutoDJ.fadeSourceHoldTicksLeft = 0;
      midiAutoDJ.thisTransitionPreStartNextBeats = 0;
@@ -957,30 +990,25 @@ if (deck1Playing && deck2Playing) {
  skipReason = "BPM difference too large (prev " + prevBpm.toFixed(1) + " next " + nextBpm.toFixed(1) + " diff " + diffBpm.toFixed(1) + "% direct, " + diffBpmDouble.toFixed(1) + "% double/half, max " + midiAutoDJ.maxBpmAdjustment + "%)";
  }
 
-// Mix harmonically by transposing (same as original: sync_key to match prev, skip if transposition too large).
-// Store the next track's key only the first time we run for this track (so we restore to file key after fade).
-// After the first tick, key is already transposed so we must not overwrite originalKeyNext.
+// Harmonic mixing: store next track's key for restore after fade; skip if transposition would be too large.
+// Key is NOT changed here — it is matched when the transition starts (in the fade block).
 if (midiAutoDJ.transpose && !skip) {
-    var oldKey = engine.getValue("[Channel"+next+"]", "key");
-    if (midiAutoDJ.originalKeyNext === undefined) {
-        midiAutoDJ.originalKeyNext = oldKey; // store once per track (cleared when fade ends or we skip)
-    }
-
-    // Sync key (next track is transposed to match prev for harmonic mix).
-    engine.setValue("[Channel"+next+"]", "sync_key", 1.0);
-    engine.setValue("[Channel"+next+"]", "sync_key", 0.0);
-    var newKey = engine.getValue("[Channel"+next+"]", "key");
-
-    // Check if we should skip because transposition would be too large (compare to stored original).
-    var baseKey = midiAutoDJ.originalKeyNext;
-    if (Math.abs(newKey - baseKey) > midiAutoDJ.transposeMax + 0.001) {
-        if (midiAutoDJ.transposeSkips < midiAutoDJ.transposeSkipsMax) {
-            skip = 1;
-            skipReason = "transposition too large (need " + (newKey - baseKey).toFixed(1) + " semitones, max " + midiAutoDJ.transposeMax + ")";
-            midiAutoDJ.transposeSkips++;
-        } else {
-            // Can't skip, so reset the key back to the original (file) key.
-            engine.setValue("[Channel"+next+"]", "key", baseKey);
+    var nextDurForKey = engine.getValue("[Channel"+next+"]", "duration");
+    if (nextDurForKey > 0) {
+        if (midiAutoDJ.originalKeyNext === undefined) {
+            midiAutoDJ.originalKeyNext = engine.getValue("[Channel"+next+"]", "key"); // store once per track (cleared when fade ends or we skip)
+        }
+        var prevKeyVal = engine.getValue("[Channel"+prev+"]", "key");
+        var baseKey = midiAutoDJ.originalKeyNext;
+        var semitoneDiff = Math.abs(prevKeyVal - baseKey);
+        if (semitoneDiff > midiAutoDJ.transposeMax + 0.001) {
+            if (midiAutoDJ.transposeSkips < midiAutoDJ.transposeSkipsMax) {
+                skip = 1;
+                skipReason = "transposition too large (need " + (prevKeyVal - baseKey).toFixed(1) + " semitones, max " + midiAutoDJ.transposeMax + ")";
+                midiAutoDJ.transposeSkips++;
+            } else {
+                midiAutoDJ._skipKeyMatchThisTrack = true; // can't skip; play in original key (no key match this transition)
+            }
         }
     }
 }
@@ -993,6 +1021,7 @@ if (midiAutoDJ.transpose && !skip) {
  skip = 0;
  midiAutoDJ.songLoaded = 0;
  midiAutoDJ.originalKeyNext = undefined;
+ midiAutoDJ._skipKeyMatchThisTrack = false;
  midiAutoDJ.lastMarkedPrevTrackId = null;
  // Clear transition-only state so nothing is retained (no transition completed).
  midiAutoDJ.transitionTargetDeck = 0;
@@ -1020,6 +1049,7 @@ if (midiAutoDJ.transpose && !skip) {
  // reset counter
  skip = 0;
  midiAutoDJ.transposeSkips = 0;
+ midiAutoDJ._skipKeyMatchThisTrack = false;
 
  // Prepare the next track for the transition
  // Place the play position at the desired offset from the best mix-in point (intro start, main cue, or track start)
